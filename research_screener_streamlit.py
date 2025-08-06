@@ -18,16 +18,13 @@ def parse_serpapi_paper(paper: dict) -> dict:
     Parses a single paper object from the SerpApi JSON structure
     and returns a standardized, clean dictionary.
     """
-    # Extract authors
     authors_list = paper.get('publication_info.authors', [])
     if isinstance(authors_list, list) and authors_list:
         authors = ", ".join([author.get('name', 'N/A') for author in authors_list])
     else:
-        # Fallback to the summary if author list is empty
         authors_summary = paper.get('publication_info.summary', '').split(' - ')[0]
         authors = authors_summary
 
-    # Extract year from summary using regex
     summary = paper.get('publication_info.summary', '')
     year_match = re.search(r'\b(19|20)\d{2}\b', summary)
     year = year_match.group(0) if year_match else "N/A"
@@ -38,15 +35,14 @@ def parse_serpapi_paper(paper: dict) -> dict:
         "year": year,
         "abstract": paper.get('snippet', 'No abstract or snippet available.'),
         "link": paper.get('link', '#'),
-        "original_data": paper # Keep original data for export if needed
+        "original_data": paper
     }
-
 
 # --- Dynamic, Themed CSS ---
 def get_themed_css(theme):
     if theme == "Dark":
         bg_color, text_color, card_bg_color, card_border_color, meta_text_color, badge_keep_bg, badge_discard_bg = (
-            "#1e2124", "#f1f1f1", "#2b2d31", "#404246", "#a0a3a8", "rgba(0, 173, 147, 0.2)", "rgba(204, 9, 47, 0.2)")
+            "#212328", "#f1f1f1", "#2b2d31", "#404246", "#a0a3a8", "rgba(0, 173, 147, 0.2)", "rgba(204, 9, 47, 0.2)")
     else:
         bg_color, text_color, card_bg_color, card_border_color, meta_text_color, badge_keep_bg, badge_discard_bg = (
             "#f3f2f1", "#0b0c0c", "#ffffff", "#dee0e2", "#505a5f", "#e5f0ed", "#fae6e9")
@@ -63,9 +59,10 @@ def get_themed_css(theme):
         .stMarkdown, .stMetric, .stRadio {{ color: {text_color}; }}
         .stButton>button {{ border-radius: 5px; font-weight: 700; padding: 10px 25px; border: 2px solid transparent; width: 100%; }}
         .paper-card {{ background-color: {card_bg_color}; border: 1px solid {card_border_color}; border-radius: 5px; padding: 25px; margin-top: 20px; min-height: 400px; }}
-        .paper-title {{ font-size: 1.4rem; font-weight: 700; color: {text_color}; line-height: 1.3; }}
-        .paper-meta {{ font-size: 0.9rem; color: {meta_text_color}; }}
+        .paper-title {{ font-size: 1.4rem; font-weight: 700; color: {text_color}; line-height: 1.3; margin-bottom: 1rem;}}
+        .paper-meta {{ font-size: 0.9rem; color: {meta_text_color}; margin-bottom: 1rem;}}
         .abstract-text {{ line-height: 1.6; color: {text_color}; text-align: justify; }}
+        .paper-link a {{ display: inline-block; margin-bottom: 1rem; }}
         .decision-badge {{ padding: 8px 15px; border-radius: 5px; font-weight: 700; margin-bottom: 15px; font-size: 0.9rem; display: inline-block; }}
         .badge-keep {{ background: {badge_keep_bg}; color: var(--dhsc-forest-green); }}
         .badge-discard {{ background: {badge_discard_bg}; color: var(--dhsc-red); }}
@@ -77,10 +74,7 @@ def get_themed_css(theme):
 def reset_state_with_new_file(uploaded_file):
     try:
         raw_json_data = json.load(io.StringIO(uploaded_file.getvalue().decode("utf-8")))
-        
-        # Use the parser to transform the raw data into a clean, standardized format
         st.session_state.papers = [parse_serpapi_paper(p) for p in raw_json_data]
-        
         st.session_state.total_papers = len(st.session_state.papers)
         st.session_state.current_index = 0
         st.session_state.decisions = {}
@@ -92,30 +86,23 @@ def reset_state_with_new_file(uploaded_file):
 
 # --- Main App ---
 
-# Sidebar for Theme and File Upload
 with st.sidebar:
     st.markdown("### Settings")
     selected_theme = st.radio("Choose App Theme", ("Light", "Dark"), key="theme", horizontal=True)
     st.markdown("---")
     uploaded_file = st.file_uploader("Upload Research Data", type=['json'], help="Upload a JSON file from SerpApi.")
 
-# Apply CSS based on theme selection
 get_themed_css(selected_theme)
 
-# App Header
 st.markdown("""
     <div class="app-header"><div class="header-line"></div>
     <div class="header-text"><h1>Workforce Information & Analysis</h1><p>Research Screening Tool</p></div></div>
     """, unsafe_allow_html=True)
 
-# Initialize or reset state on new file upload
-if uploaded_file is not None:
-    if 'uploaded_file_name' not in st.session_state or st.session_state.uploaded_file_name != uploaded_file.name:
-        reset_state_with_new_file(uploaded_file)
+if uploaded_file and ('papers' not in st.session_state or st.session_state.get('uploaded_file_name') != uploaded_file.name):
+    reset_state_with_new_file(uploaded_file)
 
-# --- Main Screening Interface ---
 if 'papers' in st.session_state and st.session_state.papers is not None:
-    # Stats and Progress
     reviewed_count = len(st.session_state.decisions)
     kept_count = list(st.session_state.decisions.values()).count('keep')
     discarded_count = list(st.session_state.decisions.values()).count('discard')
@@ -128,7 +115,6 @@ if 'papers' in st.session_state and st.session_state.papers is not None:
     st.progress((reviewed_count / total_papers) if total_papers > 0 else 0)
     st.markdown("<hr>", unsafe_allow_html=True)
 
-    # Navigation and Decision Buttons
     is_screening_complete = (reviewed_count == total_papers)
     col1, col2, col3, col4 = st.columns(4)
 
@@ -145,52 +131,55 @@ if 'papers' in st.session_state and st.session_state.papers is not None:
     if col4.button("Next ➡️", disabled=(st.session_state.current_index >= total_papers - 1)):
         st.session_state.current_index += 1; st.rerun()
         
-    # --- FIX for the empty box ---
-    # The paper card is only created if there is something to display inside it.
     if is_screening_complete and total_papers > 0:
         st.success("🎉 All papers have been reviewed!")
         st.markdown(f"**Final Tally:** You kept **{kept_count}** and discarded **{discarded_count}** papers.")
         st.balloons()
     else:
-        # Display Area for the current paper
-        st.markdown('<div class="paper-card">', unsafe_allow_html=True)
+        # Build the entire paper card as one HTML string
         idx = st.session_state.current_index
-        # Now we use the clean, parsed paper data
         paper = st.session_state.papers[idx]
+        
+        html_parts = ['<div class="paper-card">']
 
         if idx in st.session_state.decisions:
             decision = st.session_state.decisions[idx]
             badge_class = "badge-keep" if decision == 'keep' else "badge-discard"
-            st.markdown(f'<div class="decision-badge {badge_class}">Previously marked as: {decision.upper()}</div>', unsafe_allow_html=True)
+            html_parts.append(f'<div class="decision-badge {badge_class}">Previously marked as: {decision.upper()}</div>')
 
-        st.markdown(f"**Paper {idx + 1} of {total_papers}**")
-        st.markdown(f'<p class="paper-title">{paper["title"]}</p>', unsafe_allow_html=True)
-        st.markdown(f'<p class="paper-meta"><strong>Authors:</strong> {paper["authors"]}<br><strong>Year:</strong> {paper["year"]}</p>', unsafe_allow_html=True)
+        html_parts.append(f'<p><strong>Paper {idx + 1} of {total_papers}</strong></p>')
+        html_parts.append(f'<p class="paper-title">{st.runtime.scriptrunner.script_run_context.escape_html(paper["title"])}</p>')
+        html_parts.append(f'<div class="paper-meta"><strong>Authors:</strong> {st.runtime.scriptrunner.script_run_context.escape_html(paper["authors"])}<br><strong>Year:</strong> {paper["year"]}</div>')
         
         if paper["link"] and paper["link"] != '#':
+            # Use Streamlit's link_button for better security and styling
+            # This will be rendered OUTSIDE the card, which is a Streamlit limitation we accept for security.
+            # We will add a placeholder inside the card.
             st.link_button("View Full Text ↗️", paper["link"])
-            
-        st.markdown("**Abstract / Snippet**")
-        st.markdown(f'<p class="abstract-text">{paper["abstract"]}</p>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        
+        html_parts.append('<p><strong>Abstract / Snippet</strong></p>')
+        html_parts.append(f'<p class="abstract-text">{st.runtime.scriptrunner.script_run_context.escape_html(paper["abstract"])}</p>')
+        html_parts.append('</div>')
+        
+        final_html = "".join(html_parts)
+        st.markdown(final_html, unsafe_allow_html=True)
 
-    # Export Section
+
     if reviewed_count > 0:
         st.markdown("<hr>", unsafe_allow_html=True)
         st.subheader("Export Decisions")
-        # Prepare a clean DataFrame for export
-        export_list = []
-        for i, decision in st.session_state.decisions.items():
-            clean_paper = st.session_state.papers[i]
-            export_list.append({
-                "decision": decision,
-                "title": clean_paper['title'],
-                "authors": clean_paper['authors'],
-                "year": clean_paper['year'],
-                "link": clean_paper['link'],
-                "abstract": clean_paper['abstract']
-            })
-        df = pd.DataFrame(export_list)
+        export_list = [dict(p, decision=st.session_state.decisions.get(i)) for i, p in enumerate(st.session_state.papers) if i in st.session_state.decisions]
+        
+        # We only want the parsed, clean data in the export
+        clean_export_list = [
+            {
+                "decision": p['decision'],
+                "title": p['title'], "authors": p['authors'], "year": p['year'],
+                "link": p['link'], "abstract": p['abstract']
+            } for p in export_list
+        ]
+        
+        df = pd.DataFrame(clean_export_list)
         csv_bytes = df.to_csv(index=False, encoding='utf-8').encode('utf-8')
         json_bytes = df[df['decision'] == 'keep'].to_json(orient='records', indent=2).encode('utf-8')
 
