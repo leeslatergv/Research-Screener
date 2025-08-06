@@ -4,6 +4,7 @@ import streamlit as st
 from datetime import datetime
 import io
 import re
+import html # <--- 1. IMPORT PYTHON'S STANDARD HTML MODULE
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -62,7 +63,6 @@ def get_themed_css(theme):
         .paper-title {{ font-size: 1.4rem; font-weight: 700; color: {text_color}; line-height: 1.3; margin-bottom: 1rem;}}
         .paper-meta {{ font-size: 0.9rem; color: {meta_text_color}; margin-bottom: 1rem;}}
         .abstract-text {{ line-height: 1.6; color: {text_color}; text-align: justify; }}
-        .paper-link a {{ display: inline-block; margin-bottom: 1rem; }}
         .decision-badge {{ padding: 8px 15px; border-radius: 5px; font-weight: 700; margin-bottom: 15px; font-size: 0.9rem; display: inline-block; }}
         .badge-keep {{ background: {badge_keep_bg}; color: var(--dhsc-forest-green); }}
         .badge-discard {{ background: {badge_discard_bg}; color: var(--dhsc-red); }}
@@ -136,10 +136,10 @@ if 'papers' in st.session_state and st.session_state.papers is not None:
         st.markdown(f"**Final Tally:** You kept **{kept_count}** and discarded **{discarded_count}** papers.")
         st.balloons()
     else:
-        # Build the entire paper card as one HTML string
         idx = st.session_state.current_index
         paper = st.session_state.papers[idx]
         
+        # Build the entire paper card as one HTML string
         html_parts = ['<div class="paper-card">']
 
         if idx in st.session_state.decisions:
@@ -148,33 +148,30 @@ if 'papers' in st.session_state and st.session_state.papers is not None:
             html_parts.append(f'<div class="decision-badge {badge_class}">Previously marked as: {decision.upper()}</div>')
 
         html_parts.append(f'<p><strong>Paper {idx + 1} of {total_papers}</strong></p>')
-        html_parts.append(f'<p class="paper-title">{st.runtime.scriptrunner.script_run_context.escape_html(paper["title"])}</p>')
-        html_parts.append(f'<div class="paper-meta"><strong>Authors:</strong> {st.runtime.scriptrunner.script_run_context.escape_html(paper["authors"])}<br><strong>Year:</strong> {paper["year"]}</div>')
         
+        # --- 2. REPLACE THE BROKEN FUNCTION CALLS ---
+        html_parts.append(f'<p class="paper-title">{html.escape(paper["title"])}</p>')
+        html_parts.append(f'<div class="paper-meta"><strong>Authors:</strong> {html.escape(paper["authors"])}<br><strong>Year:</strong> {paper["year"]}</div>')
+        
+        # Use Streamlit's button for the link, placed just before the card
         if paper["link"] and paper["link"] != '#':
-            # Use Streamlit's link_button for better security and styling
-            # This will be rendered OUTSIDE the card, which is a Streamlit limitation we accept for security.
-            # We will add a placeholder inside the card.
             st.link_button("View Full Text ↗️", paper["link"])
         
         html_parts.append('<p><strong>Abstract / Snippet</strong></p>')
-        html_parts.append(f'<p class="abstract-text">{st.runtime.scriptrunner.script_run_context.escape_html(paper["abstract"])}</p>')
+        html_parts.append(f'<p class="abstract-text">{html.escape(paper["abstract"])}</p>')
         html_parts.append('</div>')
         
         final_html = "".join(html_parts)
         st.markdown(final_html, unsafe_allow_html=True)
-
 
     if reviewed_count > 0:
         st.markdown("<hr>", unsafe_allow_html=True)
         st.subheader("Export Decisions")
         export_list = [dict(p, decision=st.session_state.decisions.get(i)) for i, p in enumerate(st.session_state.papers) if i in st.session_state.decisions]
         
-        # We only want the parsed, clean data in the export
         clean_export_list = [
             {
-                "decision": p['decision'],
-                "title": p['title'], "authors": p['authors'], "year": p['year'],
+                "decision": p['decision'], "title": p['title'], "authors": p['authors'], "year": p['year'],
                 "link": p['link'], "abstract": p['abstract']
             } for p in export_list
         ]
